@@ -2,6 +2,12 @@
 
 @section('content')
 
+<a href="{{ route('peminjaman.create') }}">
+    Tambah Peminjaman
+</a>
+
+<hr>
+
 @foreach($peminjamans as $pinjam)
 
 <p>

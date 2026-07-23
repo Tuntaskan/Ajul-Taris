@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\peminjaman;
+use App\Models\Peminjaman;
 use App\Models\barang;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -30,11 +30,21 @@ class PeminjamanController extends Controller
     {
         $request->validate([
             'barang_id' => 'required|exists:barangs,id',
+            'jumlah' => 'required|integer|min:1',
             'tanggal_peminjaman' => 'required|date',
             'tanggal_pengembalian' => 'nullable|date|after_or_equal:tanggal_peminjaman',
         ]);
 
-        peminjaman::create([
+        $barang = Barang::findOrFail($request->barang_id);
+
+        if ($request->jumlah > $barang->jumlah) {
+
+            return back()
+                ->withInput()
+                ->with('error', 'Jumlah melebihi stok yang tersedia.');
+        }
+
+        Peminjaman::create([
             'user_id' => Auth::id(),
             'barang_id' => $request->barang_id,
             'tanggal_peminjaman' => $request->tanggal_peminjaman,
@@ -47,13 +57,13 @@ class PeminjamanController extends Controller
     }
 
     // Detail
-    public function show(peminjaman $peminjaman)
+    public function show(Peminjaman $peminjaman)
     {
         return view('peminjaman.show', compact('peminjaman'));
     }
 
     // Form edit
-    public function edit(peminjaman $peminjaman)
+    public function edit(Peminjaman $peminjaman)
     {
         $barang = barang::all();
 
@@ -77,7 +87,7 @@ class PeminjamanController extends Controller
     }
 
     // Hapus
-    public function destroy(peminjaman $peminjaman)
+    public function destroy(Peminjaman $peminjaman)
     {
         $peminjaman->delete();
 
@@ -86,15 +96,18 @@ class PeminjamanController extends Controller
     }
 
     // Admin menyetujui peminjaman
-    public function setujui(peminjaman $peminjaman)
+    public function setujui(Peminjaman $peminjaman)
     {
         $barang = barang::findOrFail($peminjaman->barang_id);
 
-        if ($barang->jumlah <= 0) {
-            return back()->with('error', 'Stok barang habis.');
-        }
+        if ($barang->jumlah < $peminjaman->jumlah) {
 
-        $barang->decrement('jumlah');
+            return back()->with(
+                'error',
+                'Stok barang tidak mencukupi.'
+            );
+        }
+        $barang->decrement('jumlah', $peminjaman->jumlah);
 
         $peminjaman->update([
             'status' => 'Disetujui'
@@ -104,7 +117,7 @@ class PeminjamanController extends Controller
     }
 
     // Admin menolak
-    public function tolak(peminjaman $peminjaman)
+    public function tolak(Peminjaman $peminjaman)
     {
         $peminjaman->update([
             'status' => 'Ditolak'
@@ -114,12 +127,12 @@ class PeminjamanController extends Controller
     }
 
     // Barang dikembalikan
-    public function selesai(peminjaman $peminjaman)
+    public function selesai(Peminjaman $peminjaman)
     {
         $barang = barang::findOrFail($peminjaman->barang_id);
 
-        $barang->increment('jumlah');
-
+        $barang->increment('jumlah', $peminjaman->jumlah);
+        
         $peminjaman->update([
             'status' => 'Selesai'
         ]);
